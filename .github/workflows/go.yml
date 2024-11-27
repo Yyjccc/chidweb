@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g., v1.0.0)"
+        description: "v0.0.1"
         required: true
         default: "v0.1.0"
 
@@ -30,17 +30,32 @@ jobs:
       - name: Compile Server
         run: |
           mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
+          echo "Compiling server for ${{ matrix.os }}-${{ matrix.arch }}..."
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/server cmd/server/main.go
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to build server for ${{ matrix.os }}-${{ matrix.arch }}"
+            exit 1
+          fi
 
       - name: Compile Client
         run: |
           mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
+          echo "Compiling client for ${{ matrix.os }}-${{ matrix.arch }}..."
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/client cmd/client/main.go
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to build client for ${{ matrix.os }}-${{ matrix.arch }}"
+            exit 1
+          fi
 
       - name: Compress Artifacts
         run: |
           mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
+          echo "Compressing artifacts for ${{ matrix.os }}-${{ matrix.arch }}..."
           tar -czf build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C build/${{ matrix.os }}-${{ matrix.arch }} .
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to compress artifacts for ${{ matrix.os }}-${{ matrix.arch }}"
+            exit 1
+          fi
 
       - name: Debug Build Output
         run: |
@@ -95,7 +110,6 @@ jobs:
             echo "upload_url=$(jq -r '.upload_url' new_release.json | sed 's/{.*}//')" >> $GITHUB_ENV
           fi
 
-      # Verify and upload only if files exist
       - name: Verify Linux AMD64 Artifacts
         run: |
           if [[ ! -f build/linux-amd64.tar.gz ]]; then
