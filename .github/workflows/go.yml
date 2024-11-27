@@ -61,6 +61,13 @@ jobs:
           echo "Checking build output:"
           ls -R build
 
+      # Keep compiled files as artifacts for later jobs
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -112,6 +119,8 @@ jobs:
       - name: Upload Linux AMD64 Assets
         if: ${{ env.upload_url && env.release_exists == 'true' }}
         run: |
+          echo "Downloading build artifact for linux-amd64..."
+          curl -sL "https://github.com/${{ github.repository }}/actions/artifacts/${{ github.run_id }}/build-artifacts-linux-amd64.tar.gz" -o build/linux-amd64.tar.gz
           if [[ ! -f build/linux-amd64.tar.gz ]]; then
             echo "Error: build/linux-amd64.tar.gz does not exist"
             exit 1
@@ -126,6 +135,8 @@ jobs:
       - name: Upload Linux ARM64 Assets
         if: ${{ env.upload_url && env.release_exists == 'true' }}
         run: |
+          echo "Downloading build artifact for linux-arm64..."
+          curl -sL "https://github.com/${{ github.repository }}/actions/artifacts/${{ github.run_id }}/build-artifacts-linux-arm64.tar.gz" -o build/linux-arm64.tar.gz
           if [[ ! -f build/linux-arm64.tar.gz ]]; then
             echo "Error: build/linux-arm64.tar.gz does not exist"
             exit 1
@@ -140,6 +151,8 @@ jobs:
       - name: Upload Windows AMD64 Assets
         if: ${{ env.upload_url && env.release_exists == 'true' }}
         run: |
+          echo "Downloading build artifact for windows-amd64..."
+          curl -sL "https://github.com/${{ github.repository }}/actions/artifacts/${{ github.run_id }}/build-artifacts-windows-amd64.tar.gz" -o build/windows-amd64.tar.gz
           if [[ ! -f build/windows-amd64.tar.gz ]]; then
             echo "Error: build/windows-amd64.tar.gz does not exist"
             exit 1
@@ -154,6 +167,8 @@ jobs:
       - name: Upload Windows ARM64 Assets
         if: ${{ env.upload_url && env.release_exists == 'true' }}
         run: |
+          echo "Downloading build artifact for windows-arm64..."
+          curl -sL "https://github.com/${{ github.repository }}/actions/artifacts/${{ github.run_id }}/build-artifacts-windows-arm64.tar.gz" -o build/windows-arm64.tar.gz
           if [[ ! -f build/windows-arm64.tar.gz ]]; then
             echo "Error: build/windows-arm64.tar.gz does not exist"
             exit 1
@@ -164,3 +179,4 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -F "file=@build/windows-arm64.tar.gz" \
             "${{ env.upload_url }}?name=server-windows-arm64.tar.gz"
+
