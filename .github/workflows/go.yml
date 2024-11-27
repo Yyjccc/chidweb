@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "v0.0.1"
+        description: "v1.0.0"
         required: true
         default: "v0.1.0"
 
@@ -31,7 +31,11 @@ jobs:
         run: |
           mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
           echo "Compiling server for ${{ matrix.os }}-${{ matrix.arch }}..."
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/server cmd/server/main.go
+          if [ "${{ matrix.os }}" == "windows" ]; then
+            GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/server.exe cmd/server/main.go
+          else
+            GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/server cmd/server/main.go
+          fi
           if [ $? -ne 0 ]; then
             echo "Error: Failed to build server for ${{ matrix.os }}-${{ matrix.arch }}"
             exit 1
@@ -41,7 +45,11 @@ jobs:
         run: |
           mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
           echo "Compiling client for ${{ matrix.os }}-${{ matrix.arch }}..."
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/client cmd/client/main.go
+          if [ "${{ matrix.os }}" == "windows" ]; then
+            GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/client.exe cmd/client/main.go
+          else
+            GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/client cmd/client/main.go
+          fi
           if [ $? -ne 0 ]; then
             echo "Error: Failed to build client for ${{ matrix.os }}-${{ matrix.arch }}"
             exit 1
@@ -179,4 +187,3 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -F "file=@build/windows-arm64.tar.gz" \
             "${{ env.upload_url }}?name=server-windows-arm64.tar.gz"
-
