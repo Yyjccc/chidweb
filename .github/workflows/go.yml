@@ -39,10 +39,13 @@ jobs:
 
       - name: Compress Artifacts
         run: |
+          mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
           tar -czf build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C build/${{ matrix.os }}-${{ matrix.arch }} .
 
-      - name: List Build Directory
-        run: ls -R build
+      - name: Debug Build Output
+        run: |
+          echo "Checking build output:"
+          ls -R build
 
   release:
     needs: build
@@ -92,10 +95,51 @@ jobs:
             echo "upload_url=$(jq -r '.upload_url' new_release.json | sed 's/{.*}//')" >> $GITHUB_ENV
           fi
 
+      # Verify and upload only if files exist
+      - name: Verify Linux AMD64 Artifacts
+        run: |
+          if [[ ! -f build/linux-amd64.tar.gz ]]; then
+            echo "Error: build/linux-amd64.tar.gz does not exist"
+            exit 1
+          fi
+
       - name: Upload Linux AMD64 Assets
+        if: ${{ env.upload_url && env.release_exists == 'true' }}
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ env.upload_url }}
           asset_path: build/linux-amd64.tar.gz
           asset_name: server-linux-amd64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Verify Linux ARM64 Artifacts
+        run: |
+          if [[ ! -f build/linux-arm64.tar.gz ]]; then
+            echo "Error: build/linux-arm64.tar.gz does not exist"
+            exit 1
+          fi
+
+      - name: Upload Linux ARM64 Assets
+        if: ${{ env.upload_url && env.release_exists == 'true' }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ env.upload_url }}
+          asset_path: build/linux-arm64.tar.gz
+          asset_name: server-linux-arm64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Verify Windows AMD64 Artifacts
+        run: |
+          if [[ ! -f build/windows-amd64.tar.gz ]]; then
+            echo "Error: build/windows-amd64.tar.gz does not exist"
+            exit 1
+          fi
+
+      - name: Upload Windows AMD64 Assets
+        if: ${{ env.upload_url && env.release_exists == 'true' }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ env.upload_url }}
+          asset_path: build/windows-amd64.tar.gz
+          asset_name: server-windows-amd64.tar.gz
           asset_content_type: application/gzip
