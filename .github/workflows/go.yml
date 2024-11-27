@@ -41,11 +41,8 @@ jobs:
         run: |
           tar -czf build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C build/${{ matrix.os }}-${{ matrix.arch }} .
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: binaries-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+      - name: List Build Directory
+        run: ls -R build
 
   release:
     needs: build
@@ -68,7 +65,8 @@ jobs:
             https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.release_version }})
           if [[ "$response" -eq 200 ]]; then
             echo "release_exists=true" >> $GITHUB_ENV
-            echo "upload_url=$(jq -r '.upload_url' response.json | sed 's/{.*}//')" >> $GITHUB_ENV
+            upload_url=$(jq -r '.upload_url' response.json | sed 's/{.*}//')
+            echo "upload_url=$upload_url" >> $GITHUB_ENV
           else
             echo "release_exists=false" >> $GITHUB_ENV
           fi
@@ -100,20 +98,4 @@ jobs:
           upload_url: ${{ env.upload_url }}
           asset_path: build/linux-amd64.tar.gz
           asset_name: server-linux-amd64.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Linux ARM64 Assets
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ env.upload_url }}
-          asset_path: build/linux-arm64.tar.gz
-          asset_name: server-linux-arm64.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Windows AMD64 Assets
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ env.upload_url }}
-          asset_path: build/windows-amd64.tar.gz
-          asset_name: server-windows-amd64.tar.gz
           asset_content_type: application/gzip
