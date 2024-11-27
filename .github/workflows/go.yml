@@ -1,0 +1,117 @@
+name: Multi-platform Build for Server and Client
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "v0.0.1"
+        required: true
+        default: "v0.1.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, windows]
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23.3
+
+      - name: Compile Server
+        run: |
+          mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/server cmd/server/main.go
+
+      - name: Compile Client
+        run: |
+          mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/${{ matrix.os }}-${{ matrix.arch }}/client cmd/client/main.go
+
+      - name: Compress Artifacts
+        run: |
+          tar -czf build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C build/${{ matrix.os }}-${{ matrix.arch }} .
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Version
+        id: version
+        run: |
+          echo "release_version=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
+      - name: Check if Release Exists
+        id: check_release
+        run: |
+          response=$(curl -s -o response.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.release_version }})
+          if [[ "$response" -eq 200 ]]; then
+            echo "release_exists=true" >> $GITHUB_ENV
+          else
+            echo "release_exists=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create or Update Release
+        id: create_release
+        run: |
+          if [[ "${{ env.release_exists }}" == "true" ]]; then
+            echo "Release exists. Updating..."
+            release_id=$(jq -r '.id' response.json)
+            curl -X PATCH \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/releases/${release_id} \
+              -d '{"name": "Release '"${{ env.release_version }}"'", "draft": false, "prerelease": false}'
+          else
+            echo "Release does not exist. Creating a new one..."
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/releases \
+              -d '{"tag_name": "'"${{ env.release_version }}"'", "name": "Release '"${{ env.release_version }}"'", "draft": false, "prerelease": false}'
+          fi
+
+      - name: Upload Linux AMD64 Assets
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url || steps.check_release.outputs.upload_url }}
+          asset_path: build/linux-amd64.tar.gz
+          asset_name: server-linux-amd64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Linux ARM64 Assets
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url || steps.check_release.outputs.upload_url }}
+          asset_path: build/linux-arm64.tar.gz
+          asset_name: server-linux-arm64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Windows AMD64 Assets
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url || steps.check_release.outputs.upload_url }}
+          asset_path: build/windows-amd64.tar.gz
+          asset_name: server-windows-amd64.tar.gz
+          asset_content_type: application/gzip
