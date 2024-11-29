@@ -15,6 +15,7 @@ const (
 	PacketTypeConnect
 	PacketTypeData
 	PacketTypeDisconnect
+	PacketTypeError
 )
 
 // PacketHeader 包头格式
@@ -22,23 +23,24 @@ const (
 // |  Magic Number  |  Packet Type  |   Client ID    |    Conn ID    |
 // |    (2 bytes)   |    (1 byte)   |    (8 bytes)   |   (4 bytes)   |
 // +----------------+----------------+----------------+----------------+
-// |   Sequence     |     Length    |
-// |    (4 bytes)   |   (4 bytes)   |
-// +----------------+----------------+
+// |    TargetID    |   Sequence    |	  Length 	 |
+// |    (4 bytes)   |   (4 bytes)   |	 (4 bytes)	 |
+// +----------------+---------------+----------------+
 const (
 	MagicNumber    = 0x8086      // 魔数，用于验证包的有效性
-	HeaderSize     = 23          // 包头大小
+	HeaderSize     = 27          // 包头大小
 	MaxPayloadSize = 1024 * 1024 // 最大负载大小 1MB
 )
 
 // Packet 数据包结构
 type Packet struct {
-	Type     PacketType
-	ClientID uint64
-	ConnID   uint32
-	Sequence uint32
-	Length   uint32
-	Payload  []byte
+	Type      PacketType
+	ClientID  uint64
+	ChannelID uint32
+	TargetID  uint32
+	Sequence  uint32
+	Length    uint32
+	Payload   []byte
 }
 
 // Encode 将数据包编码为字节流
@@ -59,14 +61,17 @@ func (p *Packet) Encode() ([]byte, error) {
 	// 写入ClientID
 	binary.BigEndian.PutUint64(buf[3:11], p.ClientID)
 
-	// 写入ConnID
-	binary.BigEndian.PutUint32(buf[11:15], p.ConnID)
+	// 写入ChannelID
+	binary.BigEndian.PutUint32(buf[11:15], p.ChannelID)
+
+	//写入TargetID
+	binary.BigEndian.PutUint32(buf[15:19], p.ChannelID)
 
 	// 写入序列号
-	binary.BigEndian.PutUint32(buf[15:19], p.Sequence)
+	binary.BigEndian.PutUint32(buf[19:23], p.Sequence)
 
 	// 写入数据长度
-	binary.BigEndian.PutUint32(buf[19:23], p.Length)
+	binary.BigEndian.PutUint32(buf[23:27], p.Length)
 
 	// 写入负载数据
 	if p.Length > 0 {
@@ -90,11 +95,12 @@ func DecodePacket(r io.Reader) (*Packet, error) {
 	}
 
 	p := &Packet{
-		Type:     PacketType(header[2]),
-		ClientID: binary.BigEndian.Uint64(header[3:11]),
-		ConnID:   binary.BigEndian.Uint32(header[11:15]),
-		Sequence: binary.BigEndian.Uint32(header[15:19]),
-		Length:   binary.BigEndian.Uint32(header[19:23]),
+		Type:      PacketType(header[2]),
+		ClientID:  binary.BigEndian.Uint64(header[3:11]),
+		ChannelID: binary.BigEndian.Uint32(header[11:15]),
+		TargetID:  binary.BigEndian.Uint32(header[15:19]),
+		Sequence:  binary.BigEndian.Uint32(header[19:23]),
+		Length:    binary.BigEndian.Uint32(header[23:27]),
 	}
 
 	// 验证负载长度

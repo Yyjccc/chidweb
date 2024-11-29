@@ -1,56 +1,58 @@
 package server
 
 import (
+	"chidweb/pkg/common"
 	"net/http"
+	"sync"
 )
 
-type HTTPAPIHandler struct {
-	server      *Server
-	mux         *http.ServeMux
-	middlewares []Middleware
+// http服务器
+type HttpServer struct {
+	Server       *http.Server
+	port         string
+	defaultHeart *common.Packet
+	handlers     *http.ServeMux
+	running      bool
+	muxMutex     sync.Mutex // 保护 mux 的修改
 }
 
-func NewHTTPAPIHandler(server *Server) *HTTPAPIHandler {
-	h := &HTTPAPIHandler{
-		server: server,
-		mux:    http.NewServeMux(),
+func NewHttpServer(port string) *HttpServer {
+	mux := http.NewServeMux()
+	return &HttpServer{
+		Server: &http.Server{
+			Addr:    ":" + port,
+			Handler: mux,
+		},
+		port:     port,
+		handlers: mux,
+		running:  false,
 	}
-	h.setupRoutes()
-	return h
+
 }
 
-func (h *HTTPAPIHandler) setupRoutes() {
-	// 基础路由
-	h.mux.HandleFunc("/heartbeat", h.withMiddlewares(h.handleHeartbeat))
-	h.mux.HandleFunc("/address", h.withMiddlewares(h.handleAddress))
+func (s *HttpServer) Start() {
+	s.running = true
 
-	// 伪装路由 (为后续扩展准备)
-	h.mux.HandleFunc("/", h.withMiddlewares(h.handleFakeStatic))
-}
-
-func (h *HTTPAPIHandler) withMiddlewares(handler http.HandlerFunc) http.HandlerFunc {
-	for i := len(h.middlewares) - 1; i >= 0; i-- {
-		handler = h.middlewares[i](handler)
+	if err := s.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		common.Error("HTTP server error:", err)
 	}
-	return handler
+
 }
 
-// 添加中间件
-func (h *HTTPAPIHandler) Use(middleware Middleware) {
-	h.middlewares = append(h.middlewares, middleware)
+func (s *HttpServer) RegisterHandler(path string, handler func(http.ResponseWriter, *http.Request)) {
+	// 加锁，确保线程安全
+	s.muxMutex.Lock()
+	defer s.muxMutex.Unlock()
+	s.handlers.HandleFunc(path, handler)
+	common.Debug("http server register path: %s", path)
 }
 
-// handleFakeStatic handles requests to the root path
-func (h *HTTPAPIHandler) handleFakeStatic(w http.ResponseWriter, r *http.Request) {
-	http.NotFound(w, r)
-}
-
-// handleAddress handles address-related requests
-func (h *HTTPAPIHandler) handleAddress(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-}
-
-// handleHeartbeat handles heartbeat requests
-func (h *HTTPAPIHandler) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+// 停止 HTTP 服务器
+func (s *HttpServer) Stop() error {
+	s.running = false
+	// 等待服务器关闭，释放资源
+	if err := s.Server.Close(); err != nil {
+		return err
+	}
+	return nil
 }

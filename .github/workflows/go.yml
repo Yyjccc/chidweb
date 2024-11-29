@@ -1,4 +1,4 @@
-name: Multi-platform Build for Server and Client
+name: Multi-platform Builder
 
 on:
   push:
