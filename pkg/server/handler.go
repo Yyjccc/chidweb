@@ -44,7 +44,7 @@ func (s *HttpServer) RegisterHandler(path string, handler func(http.ResponseWrit
 	s.muxMutex.Lock()
 	defer s.muxMutex.Unlock()
 	s.handlers.HandleFunc(path, handler)
-	common.Debug("http server register path: %s", path)
+	common.Info("http server register path: %s", path)
 }
 
 // 停止 HTTP 服务器

@@ -65,7 +65,7 @@ func (p *Packet) Encode() ([]byte, error) {
 	binary.BigEndian.PutUint32(buf[11:15], p.ChannelID)
 
 	//写入TargetID
-	binary.BigEndian.PutUint32(buf[15:19], p.ChannelID)
+	binary.BigEndian.PutUint32(buf[15:19], p.TargetID)
 
 	// 写入序列号
 	binary.BigEndian.PutUint32(buf[19:23], p.Sequence)

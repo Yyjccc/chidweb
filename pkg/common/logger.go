@@ -2,7 +2,9 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -69,7 +71,7 @@ type CustomFormatter struct{}
 
 func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	// 获取调用栈信息
-	pc, file, line, _ := runtime.Caller(9)
+	pc, file, line, _ := runtime.Caller(8)
 
 	// 获取简单文件名（去掉路径）
 	simpleFile := filepath.Base(file)
@@ -122,11 +124,32 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(logMessage), nil
 }
 
+// SetOutput 设置日志输出文件路径
+func SetOutput(filePath string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %v", err)
+	}
+
+	GetLogger().SetOutput(file)
+	return nil
+}
+
 // SetLevel 设置日志级别
 func SetLevel(level logrus.Level) {
 	mu.Lock()
 	defer mu.Unlock()
 	GetLogger().SetLevel(level)
+}
+
+// DisableLogging 禁用日志输出
+func DisableLogging() {
+	mu.Lock()
+	defer mu.Unlock()
+	GetLogger().SetOutput(io.Discard)
 }
 
 // 添加一个随机概率打印的辅助函数

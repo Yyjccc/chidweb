@@ -8,19 +8,22 @@ import (
 	"time"
 )
 
+var (
+	clientConfig *common.BasicConfig
+)
+
+func init() {
+	clientConfig = common.DefaultConfig
+}
+
 type Client struct {
-	ServerURL           string
-	TargetAddr          string
-	ClientID            string
-	manger              *TargetManger
-	TargetMap           map[uint32]uint32
-	TunnelMap           map[uint32]*TunnelClient
-	dialer              net.Dialer
-	done                chan struct{}   // Close signal
-	autoConnect         bool            // Whether to automatically connect
-	wg                  *sync.WaitGroup // Internal wait group
-	isTunnelEstablished bool            // Whether the tunnel is established
-	tunnelMutex         sync.Mutex      // Mutex for protecting tunnel status
+	ClientID  string
+	manger    *TargetManger
+	TargetMap map[uint32]uint32
+	TunnelMap map[uint32]*TunnelClient
+	dialer    net.Dialer
+	done      chan struct{}   // Close signal
+	wg        *sync.WaitGroup // Internal wait group
 }
 
 // HeartbeatResponse Server returns heartbeat response
@@ -41,11 +44,12 @@ type TCPAddress struct {
 	Raw  string // Raw address string
 }
 
-func NewClient(serverURL, targetAddr, clientID string) *Client {
-	return &Client{
-		ServerURL:  serverURL,
-		TargetAddr: targetAddr,
-		ClientID:   clientID,
+func NewClient(serverURL, clientID string, tcpAddrs []string, config *common.BasicConfig) *Client {
+	if config != nil {
+		clientConfig = config
+	}
+	client := &Client{
+		ClientID: clientID,
 		dialer: net.Dialer{
 			Timeout: 30 * time.Second, // 设置超时时间为5秒
 		},
@@ -54,28 +58,37 @@ func NewClient(serverURL, targetAddr, clientID string) *Client {
 		done:      make(chan struct{}),
 		wg:        &sync.WaitGroup{},
 	}
+
+	for _, tcpAddr := range tcpAddrs {
+		target := NewTarget(tcpAddr)
+		NewTunnelClient(client, serverURL, target)
+	}
+
+	return client
 }
 
 // Start Start the client
 func (c *Client) Start() error {
 	c.done = make(chan struct{})
 
-	// Start heartbeat
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		//c.heartbeatLoop()
-	}()
+	for _, cli := range c.TunnelMap {
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+			common.Debug("start client main loop for target: %s", cli.target.addr.Raw)
+			cli.heartbeatLoop()
+		}()
+	}
 
 	return nil
 }
 
 // 连接目标
-func (c *Client) connectToRemote(id uint32) (*TunnelClient, error) {
+func (c *Client) connectToRemote(id uint32, channelID uint32) (*TunnelClient, error) {
 	if tunnelID, ok := c.TargetMap[id]; ok {
 		if tunnelClient, ok := c.TunnelMap[tunnelID]; ok {
 			if !tunnelClient.isTunnelEstablished {
-				tunnelClient.EstablishTunnel()
+				tunnelClient.EstablishTunnel(channelID)
 			}
 			return tunnelClient, nil
 		}
@@ -130,6 +143,9 @@ func (c *Client) Dispatch(tunnelClient *TunnelClient, data []byte) {
 			return
 		}
 		switch packet.Type {
+		case common.PacketTypeHeartbeat:
+			common.LogWithProbability(0.1, "debug", "receive heartbeat response")
+			break
 		case common.PacketTypeData:
 			err := tunnelClient.tunnel.Write(packet.Payload)
 			if err != nil {
@@ -142,7 +158,7 @@ func (c *Client) Dispatch(tunnelClient *TunnelClient, data []byte) {
 			tunnelClient.CloseTunnel()
 			break
 		case common.PacketTypeConnect:
-			_, err := c.connectToRemote(packet.TargetID)
+			_, err := c.connectToRemote(packet.TargetID, packet.ChannelID)
 			if err != nil {
 				common.Error("Failed to connect to remote: %v", err)
 			}

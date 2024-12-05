@@ -61,6 +61,8 @@ func (manager *TcpListenerManager) acceptConnections(listener net.Listener, s *S
 		}
 		common.Info("Accepted TCP connection from %s", conn.RemoteAddr().String())
 		tunnel := common.NewTcpTunnel(conn, s.DisConnectCallBack)
+		s.tunnels[tunnel.ID] = tunnel
+		s.TunnelChan <- tunnel
 		//开启隧道
 		tunnel.Listen()
 	}

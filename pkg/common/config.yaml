@@ -1,0 +1,38 @@
+rate: 5
+enableProxy: false
+proxies:
+  - http://127.0.0.1:8090
+log_level: info
+log_file: ""
+key:
+  xor: "UXwoRqMyaRkUxjvKifu2rw=="
+  aes: "lY4XTVY+PNCMoFwxjHsWQi0jW0oNqfScVIUk/KE6a3M="
+  rc4: "UXwoRqMyaRkUxjvKifu2rw=="
+  image: "iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA60lEQVR4nOzQQQkAIADAQBH7V9YK7iXCXYKxtQe35uuAn5gVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWYFZgVmBWcAAAA///rKQHKXVy7dAAAAABJRU5ErkJggg=="
+custom:
+  - name: fake-nacos
+    path: /nacos/v2/ns/instance
+    description: disguised as a nacos interface traffic
+    probability: 50
+    request:
+      method: PUT
+      headers:
+        - User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+        - Content-Type:application/x-www-form-urlencoded
+      transformers: rc4->base64->append
+      before_append: 'ip=127.0.0.1&weight=0.9&clusterName=DEFAULT&groupName=DEFAULT_GROUP&ephemeral=true&metadata={"driver-class-name":"com.mysql.cj.jdbc.Driver","jwt":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC1QbHVzIn0.eyJzdW'
+      after_append: '.UX78gGcFOZ0r0kAGR59uGQnNPr3qugFqnQKEHnOLbFE","namespace":"public","data":"eyJzdWIiOiUX78gGcFOZ0r0kAGR59uGQnNPr3qugFqnQKEHnOLbFEUzI1NiIsInR5cCIiOTE2MjM5cCI6IkpXVC1cCI6IkpXVC1"}'
+    response:
+      code: 200
+      transformers: aes->base64->append
+      before_append: '{"code": 0,"message": "success","data":{"clusterName":"DEFAULT","weight":1.0,"healthy": true,"instanceId": null,"metadata":{"data":"eyJzdWI'
+      after_append:  'NPr3qugFqnQ"}}}'
+  - name: fake-image
+    path: /static/img/common-logo.png
+    probability: 50
+    request:
+      method: POST
+      transformers: rc4->image
+    response:
+      code: 200
+      transformers: aes->image
