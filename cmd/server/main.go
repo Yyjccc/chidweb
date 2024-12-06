@@ -4,6 +4,7 @@ import (
 	"chidweb/pkg/common"
 	"chidweb/pkg/server"
 	"flag"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
@@ -62,6 +63,8 @@ func main() {
 			os.Exit(1)
 		}
 		common.Info("Log file set to: %s", *loggerFilePath)
+	} else {
+		fmt.Println(common.Banner)
 	}
 	ports := strings.Split(*tcpPort, ",")
 

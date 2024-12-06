@@ -98,6 +98,38 @@ func (c *Client) connectToRemote(id uint32, channelID uint32) (*TunnelClient, er
 
 func (c *Client) DisconnectCallback(tunnel *common.Tunnel) {
 
+	tunnelClient := c.TunnelMap[tunnel.ClientId]
+	if tunnelClient == nil {
+		return
+	}
+	defer func() {
+		tunnelClient.isTunnelEstablished = false
+	}()
+	packet := &common.Packet{
+		Type:      common.PacketTypeDisconnect,
+		ClientID:  c.clientIDAsUint64(),
+		ChannelID: tunnel.ID,
+		TargetID:  tunnelClient.target.ID,
+		Sequence:  0,
+		Length:    0,
+		Payload:   nil,
+	}
+	encode, err := packet.Encode()
+	if err != nil {
+		common.Error("client close tunnel err: %v", err)
+	}
+	resp := tunnelClient.Send(encode)
+	packets, err := common.DecodePackets(resp)
+	if err != nil {
+		common.Error("server close tunnel  err: %v", err)
+	}
+	for _, p := range packets {
+		if p.Type == common.PacketTypeDisconnect {
+			common.Info("success close tunnel [tunnelID %v] [Target %v]", tunnel.ID, tunnelClient.target.addr.Raw)
+			return
+		}
+	}
+	common.Warn("client success close tunnel [tunnelID %v] [Target %v] but not know server", tunnel.ID, c.clientIDAsUint64())
 }
 
 // Stop Stop the client

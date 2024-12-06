@@ -17,7 +17,7 @@ var (
 // tcp 连接
 type Tunnel struct {
 	Conn           net.Conn
-	ClientId       uint64
+	ClientId       uint32
 	ID             uint32
 	PendingPackets chan *Packet // 待发送的数据包队列
 	Alive          bool
@@ -47,10 +47,12 @@ func NewTcpTunnel(conn net.Conn, onClose func(tunnel *Tunnel)) *Tunnel {
 
 // 监听tcp数据
 func (t *Tunnel) Listen() {
+	Debug("[tunnel] start a listen goroutine")
 	buffer := make([]byte, buffSize) // 设定一个合适的缓冲区
 	for {
 		select {
 		case <-t.Done:
+			Debug("[tunnel] closed a listen goroutine")
 			// 如果收到关闭信号，退出 goroutine
 			return
 		default:
@@ -95,6 +97,7 @@ func (t *Tunnel) Close() {
 			Error("Failed to close tunnel [ConnID: %d]: %v", t.ID, err)
 			return
 		}
+		Debug("[tunnel] close a tcp connection [%v]", t.Conn.RemoteAddr())
 		t.Alive = false
 		if t.OnClose != nil {
 			t.OnClose(t)

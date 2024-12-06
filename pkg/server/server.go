@@ -238,10 +238,17 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 		break
 	case common.PacketTypeDisconnect:
 		//客户端要求断开连接
+		common.Info("receive disconnect packet, channelID: %d, targetID: %d", packet.ChannelID, packet.TargetID)
 		if tunnel, ok := s.tunnels[packet.ChannelID]; ok {
-			delete(s.tunnels, packet.ChannelID)
 			tunnel.Close()
 		}
+		c := &common.Packet{
+			Type:      common.PacketTypeDisconnect,
+			ClientID:  packet.ClientID,
+			ChannelID: packet.ChannelID,
+			TargetID:  packet.TargetID,
+		}
+		responsePackets = append(responsePackets, c)
 		break
 	default:
 		common.Warn("Unknown packet type: %d", packet.Type)
@@ -255,7 +262,8 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 
 // 服务端主动断开连接时候执行的回调函数
 func (s *Server) DisConnectCallBack(tunnel *common.Tunnel) {
-
+	delete(s.tunnels, tunnel.ID)
+	common.Info("server success close tunnel [tunnelID %v]", tunnel.ID)
 }
 
 func (s *Server) Wait() {

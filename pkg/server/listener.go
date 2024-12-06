@@ -63,7 +63,7 @@ func (manager *TcpListenerManager) acceptConnections(listener net.Listener, s *S
 		tunnel := common.NewTcpTunnel(conn, s.DisConnectCallBack)
 		s.tunnels[tunnel.ID] = tunnel
 		s.TunnelChan <- tunnel
-		//开启隧道
+		//开启隧道,进行阻塞
 		tunnel.Listen()
 	}
 }

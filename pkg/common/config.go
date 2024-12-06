@@ -13,6 +13,11 @@ import (
 //go:embed config.yaml
 var configFile embed.FS
 
+//go:embed banner.txt
+var Banner string
+
+const Version = "v0.0.1"
+
 var (
 	InitConfig *BasicConfig
 	//开启流量混淆默认配置

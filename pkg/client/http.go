@@ -87,6 +87,7 @@ func (cli *TunnelClient) EstablishTunnel(serverTunnelID uint32) {
 		return
 	}
 	tunnel := common.NewTcpTunnel(conn, cli.client.DisconnectCallback)
+	tunnel.ClientId = cli.ID
 	go tunnel.Listen()
 	common.Info("tcp tunnel established to %s", conn.RemoteAddr().String())
 	cli.tunnel = tunnel
@@ -110,14 +111,8 @@ func (cli *TunnelClient) heartbeatLoop() {
 	}
 }
 
-// 处理请求数据
-func (http *TunnelClient) handlerBeforeSend(data []byte) []byte {
-	return data
-}
-
 // 发送数据包
 func (cli *TunnelClient) Send(data []byte) []byte {
-	handleData := cli.handlerBeforeSend(data)
 
 	path := cli.ServerAddr + heartbeatPath
 	var resp *http.Response
@@ -126,7 +121,7 @@ func (cli *TunnelClient) Send(data []byte) []byte {
 	//随机选取请求
 	if clientConfig == nil {
 		//没有自定义设置
-		resp, err = DoRequest(POST_METHOD, path, handleData, nil)
+		resp, err = DoRequest(POST_METHOD, path, data, nil)
 		if err != nil {
 			common.Error("Post error: %v", err)
 		}

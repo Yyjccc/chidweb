@@ -32,7 +32,7 @@ func NewHttpServer(port string) *HttpServer {
 
 func (s *HttpServer) Start() {
 	s.running = true
-
+	common.Info("[http] server on port %v", s.port)
 	if err := s.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		common.Error("HTTP server error:", err)
 	}
@@ -50,6 +50,7 @@ func (s *HttpServer) RegisterHandler(path string, handler func(http.ResponseWrit
 // 停止 HTTP 服务器
 func (s *HttpServer) Stop() error {
 	s.running = false
+	common.Info("[http] server close")
 	// 等待服务器关闭，释放资源
 	if err := s.Server.Close(); err != nil {
 		return err

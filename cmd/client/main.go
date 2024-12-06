@@ -4,6 +4,7 @@ import (
 	client2 "chidweb/pkg/client"
 	"chidweb/pkg/common"
 	"flag"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
@@ -67,6 +68,8 @@ func main() {
 			os.Exit(1)
 		}
 		common.Info("Log file set to: %s", *loggerFilePath)
+	} else {
+		fmt.Println(common.Banner)
 	}
 
 	var config *common.BasicConfig
