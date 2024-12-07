@@ -1,22 +1,39 @@
 
+<p align="center">
 
+
+
+
+</p>
 
 [![Star this repo](https://img.shields.io/badge/⭐-Star%20this%20repo-green)](https://github.com/Yyjccc/chidweb/stargazers)
 
 
-
 <p align="center">
- <img src="asset/chidweb.ico" width="155" height="155" alt="chidweb">
+ <img src="asset/chidweb.ico" width="245" height="245" alt="chidweb">
 <br/>
-<a href="https://github.com/Yyjccc/chidweb/">
-    <img src="asset/logo.png" alt="logo" style="max-width: 170px; height: auto;">
-  </a>
+
 </p>
 
+<div align="center">
 
-# Chidweb
+# ✨ Chidweb  ✨
 
-🚀🚀🚀一个反向http隧道工具🎉🎉🎉
+
+![license](https://img.shields.io/badge/license-MIT-green")
+![Static Badge](https://img.shields.io/badge/golang-blue)
+![issues](https://img.shields.io/github/issues/Yyjccc/chidweb?color=F48D73)
+![release](https://img.shields.io/github/release/Yyjccc/chidweb)
+
+
+
+
+</div>
+
+
+
+🚀🚀🚀`chidweb` 是一款反向http隧道工具🎉🎉🎉
+
 
 项目仅供学习，请勿用于非法用途！
 
@@ -39,7 +56,12 @@
 
 ## 🛠️Usage 使用
 
+
+
 ### Client 客户端
+
+
+
 ```cmd
 usage:
     -cf string
@@ -63,6 +85,10 @@ usage:
     -t string
         target tcp address,split:','
 ```
+
+
+
+
 - s: （必需参数）服务端地址
 - t: (必需参数) c2或者目标tcp地址 ，可以设置多个，以','分隔
 - i: 维持心跳的时间间隔，单位为秒，默认3秒 (以实际情况进行衡量)
@@ -75,6 +101,7 @@ usage:
 - ln : 是否关闭日志输出，设置为true的时候，控制台不会产生日志输出
 
 
+
 example
 ```shell
    client -s http://172.19.173.38:8080 -t 127.0.0.1:8085,127.0.0.1:7077 -enable-proxy -p http://127.0.0.1:8090
@@ -83,7 +110,12 @@ example
 
 
 ### Server 服务端
+
+
+
 当机器上有一定执行权限，且有可用端口的时候，可用
+
+
 
 ```cmd
 usage:
@@ -114,6 +146,8 @@ example
 
 
 ### 配置文件
+
+
 
 默认配置：
 ```yaml
@@ -159,6 +193,8 @@ custom:
 
 #### 整体配置
 
+
+
 - <b>rate<b/> : client端发包的时间间隔，单位s
 - enableProxy : 是否开启代理
 - proxies : http代理
@@ -170,6 +206,8 @@ custom:
     - xor； 异或计算的密钥，base64编码
     - image: 图片填充的原数据,base64编码
 - custom: 是一个配置数组,每一项都是一种数据包处置方式，client按照概率触走对应的配置
+
+
 
 #### custom
 自定义流量混淆规则
@@ -195,3 +233,6 @@ custom:
 
 
 ⭐ **喜欢这个项目？别忘了点亮 Star 支持哦！** ⭐
+
+
+![](https://api.moedog.org/count/@Yyjccc.readme)
