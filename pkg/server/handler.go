@@ -32,9 +32,9 @@ func NewHttpServer(port string) *HttpServer {
 
 func (s *HttpServer) Start() {
 	s.running = true
-	common.Info("[http] server on port %v", s.port)
+	common.Info("[http] HTTP server on port %v", s.port)
 	if err := s.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		common.Error("HTTP server error:", err)
+		common.Error("[http] HTTP server error:", err)
 	}
 
 }
@@ -44,7 +44,7 @@ func (s *HttpServer) RegisterHandler(path string, handler func(http.ResponseWrit
 	s.muxMutex.Lock()
 	defer s.muxMutex.Unlock()
 	s.handlers.HandleFunc(path, handler)
-	common.Info("http server register path: %s", path)
+	common.Info("[http] http server register path: %s", path)
 }
 
 // 停止 HTTP 服务器

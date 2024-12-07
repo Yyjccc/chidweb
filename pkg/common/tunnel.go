@@ -10,37 +10,36 @@ import (
 )
 
 var (
-	buffSize         = 4096
-	packetChannelMax = 100
+	buffSize = 4096
 )
 
 // tcp 连接
 type Tunnel struct {
-	Conn           net.Conn
-	ClientId       uint32
-	ID             uint32
-	PendingPackets chan *Packet // 待发送的数据包队列
-	Alive          bool
-	Done           chan struct{}        // 连接关闭信号
-	LastActive     time.Time            // 最后活跃时间
-	OnClose        func(tunnel *Tunnel) // 回调函数，关闭隧道的时候执行
-	SendBuffer     *bytes.Buffer        // 发送缓冲区
-	BufferMutex    sync.Mutex
+	Conn        net.Conn
+	ClientId    uint32
+	ID          uint32
+	Connected   bool
+	Alive       bool
+	Done        chan struct{}        // 连接关闭信号
+	LastActive  time.Time            // 最后活跃时间
+	OnClose     func(tunnel *Tunnel) // 回调函数，关闭隧道的时候执行
+	SendBuffer  *bytes.Buffer        // 发送缓冲区
+	BufferMutex sync.Mutex
 }
 
 func NewTcpTunnel(conn net.Conn, onClose func(tunnel *Tunnel)) *Tunnel {
 	uuid := Generate32ID()
 	Info("[tunnel] open a tunnel , connect id: %d", uuid)
 	tunnel := &Tunnel{
-		Conn:           conn,
-		Done:           make(chan struct{}),
-		PendingPackets: make(chan *Packet, packetChannelMax),
-		LastActive:     time.Now(),
-		ID:             uuid,
-		Alive:          true,
-		SendBuffer:     &bytes.Buffer{},
-		BufferMutex:    sync.Mutex{},
-		OnClose:        onClose,
+		Conn:        conn,
+		Done:        make(chan struct{}),
+		LastActive:  time.Now(),
+		Connected:   false,
+		ID:          uuid,
+		Alive:       true,
+		SendBuffer:  &bytes.Buffer{},
+		BufferMutex: sync.Mutex{},
+		OnClose:     onClose,
 	}
 	return tunnel
 }
@@ -65,9 +64,13 @@ func (t *Tunnel) Listen() {
 					return
 				}
 				if err != net.ErrClosed {
-					Error("Failed to read data from connection [ID: %d]: %v", t.ID, err)
+					if !t.Alive {
+						Warn("[tunnel] connection already closed, exiting listen")
+						return
+					}
+					Error("[tunnel] Failed to read data from connection [ID: %d]: %v", t.ID, err)
 				}
-				close(t.Done) // 关闭连接
+				//close(t.Done) // 关闭连接
 				return
 			}
 
@@ -81,7 +84,7 @@ func (t *Tunnel) Listen() {
 				if t.SendBuffer != nil {
 					_, err := t.SendBuffer.Write(data)
 					if err != nil {
-						Error("Failed to write to send buffer: %v", err)
+						Error("[tunnel] Failed to write to send buffer: %v", err)
 					}
 				}
 				t.BufferMutex.Unlock()
@@ -92,16 +95,24 @@ func (t *Tunnel) Listen() {
 
 func (t *Tunnel) Close() {
 	if t.Alive {
-		err := t.Conn.Close()
-		if err != nil {
-			Error("Failed to close tunnel [ConnID: %d]: %v", t.ID, err)
-			return
-		}
-		Debug("[tunnel] close a tcp connection [%v]", t.Conn.RemoteAddr())
+		t.Connected = false
 		t.Alive = false
 		if t.OnClose != nil {
 			t.OnClose(t)
 		}
+		select {
+		case t.Done <- struct{}{}:
+		default:
+			// 如果通道已经关闭，跳过发送
+		}
+
+		err := t.Conn.Close()
+		if err != nil {
+			Error("[tunnel] Failed to close tunnel [ConnID: %d]: %v", t.ID, err)
+			return
+		}
+		Info("[tunnel] close a tcp connection [%v] and close tunnel", t.Conn.RemoteAddr())
+		close(t.Done)
 	}
 }
 
@@ -112,7 +123,7 @@ func (t *Tunnel) Write(data []byte) error {
 		WithFields(logrus.Fields{
 			"error":  err,
 			"connID": t.ID,
-		}).Error("Failed to write data")
+		}).Error("[tunnel] Failed to write data")
 		return err
 	}
 	return nil

@@ -95,7 +95,7 @@ type KeyConfig struct {
 func NewConfigByFile(filepath string) *BasicConfig {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		panic("not found file :" + filepath)
+		panic("[config] not found file :" + filepath)
 
 	}
 	var config BasicConfig
@@ -150,7 +150,7 @@ func ParseConfig(config *BasicConfig) *BasicConfig {
 					transformer = NewImageTransformer(config.Key.Image)
 					break
 				default:
-					panic("unknown transform type :" + split)
+					panic("[config] unknown transform type :" + split)
 				}
 				l.PushBack(transformer)
 			}
@@ -184,7 +184,7 @@ func ParseConfig(config *BasicConfig) *BasicConfig {
 					transformer = NewImageTransformer(config.Key.Image)
 					break
 				default:
-					panic("unknown transform type :" + split)
+					panic("[config] unknown transform type :" + split)
 				}
 				l.PushBack(transformer)
 			}

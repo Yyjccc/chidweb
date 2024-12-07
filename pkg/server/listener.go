@@ -25,7 +25,7 @@ func (manager *TcpListenerManager) StopAll() {
 	for _, listener := range manager.listeners {
 		err := listener.Close()
 		if err != nil {
-			common.Error("Error closing listener %s", err.Error())
+			common.Error("[listener] Error closing listener %s", err.Error())
 		}
 	}
 }
@@ -35,9 +35,9 @@ func (manager *TcpListenerManager) StartAllListener(server *Server) {
 	for _, addr := range manager.addrs {
 		listener, err := net.Listen("tcp", addr)
 		if err != nil {
-			common.Error("failed to create TCP listener: %v", err)
+			common.Error("[listener] failed to create TCP listener: %v", err)
 		}
-		common.Info("TCP listener started on %s", listener.Addr().String())
+		common.Info("[listener] TCP listener started on %s", listener.Addr().String())
 		manager.listeners[addr] = listener
 		manager.wg.Add(1)
 		go manager.acceptConnections(listener, server)
@@ -48,18 +48,18 @@ func (manager *TcpListenerManager) acceptConnections(listener net.Listener, s *S
 	defer func() {
 		manager.wg.Done()
 		if r := recover(); r != nil {
-			common.Error("Recovered from panic: %v", r)
+			common.Error("[listener] Recovered from panic: %v", r)
 		}
 	}()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
-				common.Error("Accept error: %v", err)
+				common.Error("[listener] Accept error: %v", err)
 			}
 			return
 		}
-		common.Info("Accepted TCP connection from %s", conn.RemoteAddr().String())
+		common.Info("[listener] Accepted TCP connection from %s", conn.RemoteAddr().String())
 		tunnel := common.NewTcpTunnel(conn, s.DisConnectCallBack)
 		s.tunnels[tunnel.ID] = tunnel
 		s.TunnelChan <- tunnel

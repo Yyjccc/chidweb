@@ -34,6 +34,7 @@ type Server struct {
 	done           chan struct{}
 	wg             *sync.WaitGroup // 内部 WaitGroup
 	clients        []*ActiveClient
+	waitTunnelMap  map[uint32]*common.Tunnel
 	TunnelChan     chan *common.Tunnel
 	tunnelClients  map[uint32]*ActiveClient
 }
@@ -66,6 +67,7 @@ func NewServer(config *common.BasicConfig, httpPort int, tcpPorts []string) *Ser
 		tunnels:        make(map[uint32]*common.Tunnel),
 		clients:        make([]*ActiveClient, 0),
 		tunnelClients:  make(map[uint32]*ActiveClient),
+		waitTunnelMap:  make(map[uint32]*common.Tunnel),
 		httpPort:       strconv.Itoa(httpPort),
 		done:           make(chan struct{}),
 		wg:             &sync.WaitGroup{},
@@ -177,7 +179,7 @@ func (s *Server) handlePackets(packets []*common.Packet) []*common.Packet {
 // 解析和处理数据包
 func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 	var responsePackets []*common.Packet
-	common.LogWithProbability(0.1, "debug", "server received packet,type: %v , clint id: %v", packet.Type, packet.ClientID)
+	common.LogWithProbability(0.1, "debug", "[server] received packet,type: %v , clint id: %v", packet.Type, packet.ClientID)
 	switch packet.Type {
 	case common.PacketTypeHeartbeat:
 		select {
@@ -188,17 +190,35 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 				ChannelID: tunnel.ID,
 				TargetID:  packet.TargetID,
 			}
+			//添加等待队列
+			s.waitTunnelMap[tunnel.ID] = tunnel
 			responsePackets = append(responsePackets, pa)
 		default:
-			p := &common.Packet{
-				Type:      common.PacketTypeHeartbeat,
-				ClientID:  packet.ClientID,
-				ChannelID: packet.ChannelID,
-				TargetID:  packet.TargetID,
-				Sequence:  packet.Sequence,
-				Length:    packet.Length,
+			//检查是否存在需要客户端连接的tunnel
+			if len(s.waitTunnelMap) == 0 {
+				p := &common.Packet{
+					Type:      common.PacketTypeHeartbeat,
+					ClientID:  packet.ClientID,
+					ChannelID: packet.ChannelID,
+					TargetID:  packet.TargetID,
+					Sequence:  packet.Sequence,
+					Length:    packet.Length,
+				}
+				responsePackets = append(responsePackets, p)
+			} else {
+				for _, tunnel := range s.waitTunnelMap {
+					//取一个
+					pa := &common.Packet{
+						Type:      common.PacketTypeConnect,
+						ClientID:  packet.ClientID,
+						ChannelID: tunnel.ID,
+						TargetID:  packet.TargetID,
+					}
+					responsePackets = append(responsePackets, pa)
+					break
+				}
+
 			}
-			responsePackets = append(responsePackets, p)
 		}
 		break
 	//处理数据
@@ -209,7 +229,7 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 			//tunnel := tunnelVal.(*Tunnel)
 			err := tunnel.Write(packet.Payload)
 			if err != nil {
-				common.Error("Failed to write to tunnel ,%s", err.Error())
+				common.Error("[server] Failed to write to tunnel ,%s", err.Error())
 			}
 			p := &common.Packet{
 				Type:      common.PacketTypeData,
@@ -233,7 +253,7 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 			}
 			responsePackets = append(responsePackets, p)
 		} else {
-			common.Warn("not found tunnel [clintID %d] - [connID %d]", packet.ClientID, packet.ChannelID)
+			common.Warn("[server] not found tunnel [clintID %d] - [connID %d]", packet.ClientID, packet.ChannelID)
 		}
 		break
 	case common.PacketTypeDisconnect:
@@ -250,8 +270,18 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 		}
 		responsePackets = append(responsePackets, c)
 		break
+	case common.PacketTypeConnected:
+		common.Info("[connect] connected client tunnel for [target %v]", packet.TargetID)
+		delete(s.waitTunnelMap, packet.ChannelID)
+		if c, ok := s.tunnels[packet.ChannelID]; ok {
+			c.Connected = true
+			responsePackets = append(responsePackets, packet)
+		}
+		break
+	case common.PacketTypeError:
+		common.Warn("[server] received client error: %s, [ClientID: %v] [targetID: %d]", string(packet.Payload), packet.ClientID, packet.TargetID)
 	default:
-		common.Warn("Unknown packet type: %d", packet.Type)
+		common.Warn("[server] Unknown packet type: %d", packet.Type)
 	}
 	if len(responsePackets) == 0 {
 		//默认返回
@@ -263,7 +293,7 @@ func (s *Server) parsePacket(packet *common.Packet) []*common.Packet {
 // 服务端主动断开连接时候执行的回调函数
 func (s *Server) DisConnectCallBack(tunnel *common.Tunnel) {
 	delete(s.tunnels, tunnel.ID)
-	common.Info("server success close tunnel [tunnelID %v]", tunnel.ID)
+	common.Info("[server] success close tunnel [tunnelID %v]", tunnel.ID)
 }
 
 func (s *Server) Wait() {
@@ -277,7 +307,7 @@ func (s *Server) addConfigHandler() {
 		s.HttpServer.RegisterHandler(conf.Path, func(w http.ResponseWriter, r *http.Request) {
 			data, err := io.ReadAll(r.Body)
 			if err != nil {
-				common.Error("Failed to read request body")
+				common.Error("[http] Failed to read request body")
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -289,7 +319,7 @@ func (s *Server) addConfigHandler() {
 				reqTransformer := e.Value.(common.Transformer)
 				unTransformData, err = reqTransformer.UnTransform(unTransformData)
 				if unTransformData == nil || err != nil {
-					common.Error("Failed to handle request data")
+					common.Error("[http] Failed to handle request data")
 					w.WriteHeader(500)
 					return
 				}
@@ -298,7 +328,7 @@ func (s *Server) addConfigHandler() {
 
 			packets, err := common.DecodePackets(unTransformData)
 			if err != nil {
-				common.Error("Failed to decode packets")
+				common.Error("[http] Failed to decode packets")
 				w.WriteHeader(500)
 				return
 			}
@@ -342,7 +372,7 @@ func (s *Server) addConfigHandler() {
 
 			_, err = w.Write(TransformData)
 			if err != nil {
-				common.Error("%v", err)
+				common.Error("[http] %v", err)
 			}
 
 		})

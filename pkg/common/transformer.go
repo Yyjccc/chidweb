@@ -86,19 +86,19 @@ func (t *AESTransformer) Transform(data []byte) []byte {
 
 	defer func() {
 		if err := recover(); err != nil {
-			Error("panic: ", err)
+			Error("[transformer] panic: ", err)
 		}
 	}()
 	block, err := aes.NewCipher(t.key)
 	if err != nil {
-		Error("failed to create AES cipher: %w", err)
+		Error("[transformer] failed to create AES cipher: %w", err)
 		return nil
 	}
 
 	// 生成随机 IV
 	iv := make([]byte, block.BlockSize())
 	if _, err := rand.Read(iv); err != nil {
-		Error("failed to generate IV: %w", err)
+		Error("[transformer] failed to generate IV: %w", err)
 		return nil
 	}
 
@@ -121,12 +121,12 @@ func (t *AESTransformer) UnTransform(data []byte) ([]byte, error) {
 	//Debug("AES 输入：%s", base64.StdEncoding.EncodeToString(data))
 	block, err := aes.NewCipher(t.key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+		return nil, fmt.Errorf("[transformer] failed to create AES cipher: %w", err)
 	}
 
 	blockSize := block.BlockSize()
 	if len(data) < blockSize {
-		return nil, errors.New("invalid data length")
+		return nil, errors.New("[transformer] aes invalid data length")
 	}
 
 	// 提取 IV 和实际密文
@@ -141,7 +141,7 @@ func (t *AESTransformer) UnTransform(data []byte) ([]byte, error) {
 	// 去除 PKCS7 填充
 	origData, err = PKCS7UnPadding(origData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unpad data: %w", err)
+		return nil, fmt.Errorf("[transformer] aes failed to unpad data: %w", err)
 	}
 
 	return origData, nil
@@ -158,11 +158,11 @@ func PKCS7Padding(data []byte, blockSize int) []byte {
 func PKCS7UnPadding(data []byte) ([]byte, error) {
 	length := len(data)
 	if length == 0 {
-		return nil, errors.New("data is empty")
+		return nil, errors.New("[transformer] aes data is empty")
 	}
 	padding := int(data[length-1])
 	if padding > length || padding == 0 {
-		return nil, errors.New("invalid padding")
+		return nil, errors.New("[transformer] aesinvalid padding")
 	}
 	return data[:length-padding], nil
 }
@@ -233,17 +233,17 @@ func (a AppendTransformer) Transform(data []byte) []byte {
 func (a AppendTransformer) UnTransform(data []byte) ([]byte, error) {
 	// 检查数据长度是否足够
 	if len(data) < len(a.beforeAppend)+len(a.afterAppend) {
-		return nil, errors.New("data too short to untransform")
+		return nil, errors.New("[transformer] append data too short to untransform")
 	}
 
 	// 验证前缀
 	if !bytes.HasPrefix(data, a.beforeAppend) {
-		return nil, errors.New("data does not have expected prefix")
+		return nil, errors.New("[transformer] append data does not have expected prefix")
 	}
 
 	// 验证后缀
 	if !bytes.HasSuffix(data, a.afterAppend) {
-		return nil, errors.New("data does not have expected suffix")
+		return nil, errors.New("[transformer] append data does not have expected suffix")
 	}
 
 	// 提取中间部分
@@ -289,7 +289,7 @@ type ImageTransformer struct {
 func NewImageTransformer(imgDataBase64 string) *ImageTransformer {
 	pngData, err := base64.StdEncoding.DecodeString(imgDataBase64)
 	if err != nil {
-		panic(fmt.Errorf("base64解码PNG数据失败: %v", err))
+		panic(fmt.Errorf("[transformer] base64解码PNG数据失败: %v", err))
 	}
 
 	return &ImageTransformer{
@@ -312,7 +312,7 @@ func (t *ImageTransformer) Transform(data []byte) []byte {
 func (t *ImageTransformer) UnTransform(srcImg []byte) ([]byte, error) {
 	//Debug("输入 image：%s", base64.URLEncoding.EncodeToString(srcImg))
 	if len(srcImg) < 10 {
-		return nil, fmt.Errorf("图像数据太小，无法提取数据")
+		return nil, fmt.Errorf("[transformer] 图像数据太小，无法提取数据")
 	}
 
 	// 提取最后10个字节的附加数据

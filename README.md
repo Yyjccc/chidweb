@@ -235,4 +235,10 @@ custom:
 ⭐ **喜欢这个项目？别忘了点亮 Star 支持哦！** ⭐
 
 
-![](https://api.moedog.org/count/@Yyjccc.readme)
+![count](https://api.moedog.org/count/@Yyjccc.readme)
+
+
+
+
+
+![stars](https://starchart.cc/Yyjccc/chidweb.svg)

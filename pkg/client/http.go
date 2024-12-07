@@ -79,19 +79,20 @@ func SelectByProbability() *common.CustomConfig {
 }
 
 // 建立隧道
-func (cli *TunnelClient) EstablishTunnel(serverTunnelID uint32) {
+func (cli *TunnelClient) EstablishTunnel(serverTunnelID uint32) error {
 	cli.ServerTunnelID = serverTunnelID
 	conn, err := cli.client.dialer.Dial("tcp", cli.target.addr.Raw)
 	if err != nil {
-		common.Error("tcp dial error : %v", err)
-		return
+		common.Error("[connect] tcp dial error : %v", err)
+		return err
 	}
 	tunnel := common.NewTcpTunnel(conn, cli.client.DisconnectCallback)
 	tunnel.ClientId = cli.ID
 	go tunnel.Listen()
-	common.Info("tcp tunnel established to %s", conn.RemoteAddr().String())
+	common.Info("[connect] tcp tunnel established to %s", conn.RemoteAddr().String())
 	cli.tunnel = tunnel
 	cli.isTunnelEstablished = true
+	return nil
 }
 
 // 维持心跳或者连接的主循环
@@ -104,7 +105,7 @@ func (cli *TunnelClient) heartbeatLoop() {
 			return
 		case <-cli.ticker.C:
 			if err := cli.MainLoop(); err != nil {
-				common.Error("MainLoop error: %v", err)
+				common.Error("[client] MainLoop error: %v", err)
 				continue
 			}
 		}
@@ -123,7 +124,7 @@ func (cli *TunnelClient) Send(data []byte) []byte {
 		//没有自定义设置
 		resp, err = DoRequest(POST_METHOD, path, data, nil)
 		if err != nil {
-			common.Error("Post error: %v", err)
+			common.Error("[http] error: %v", err)
 		}
 	} else {
 		//随机选取一种加密方式
@@ -135,7 +136,7 @@ func (cli *TunnelClient) Send(data []byte) []byte {
 			reqTransformer := e.Value.(common.Transformer)
 			TransformedData = reqTransformer.Transform(TransformedData)
 			if TransformedData == nil {
-				common.Warn("will send empty data.")
+				common.Warn("[http] will send empty data.")
 				break
 			}
 		}
@@ -148,7 +149,7 @@ func (cli *TunnelClient) Send(data []byte) []byte {
 		}
 		resp, err = DoRequest(config.Method, path, TransformedData, headers)
 		if err != nil {
-			common.Error("request error: %v", err)
+			common.Error("[http] request error: %v", err)
 		}
 	}
 	if resp == nil {
@@ -157,7 +158,7 @@ func (cli *TunnelClient) Send(data []byte) []byte {
 	defer resp.Body.Close()
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		common.Error("Failed to read tunnel heartbeat response: %v", err)
+		common.Error("[http] Failed to read tunnel heartbeat response: %v", err)
 		return nil
 	}
 
@@ -170,7 +171,7 @@ func (cli *TunnelClient) Send(data []byte) []byte {
 		respTransformer := e.Value.(common.Transformer)
 		UnTransformedData, err = respTransformer.UnTransform(UnTransformedData)
 		if err != nil {
-			common.Error("UnTransformedData error: %v", err)
+			common.Error("[http] UnTransformedData error: %v", err)
 			return nil
 		}
 	}
@@ -207,7 +208,7 @@ func (cli *TunnelClient) MainLoop() error {
 			return err
 		}
 		respData := cli.Send(encode)
-		common.LogWithProbability(0.1, "debug", "Sending tunnel heartbeat [ClientID: %s, tunnelID: %d, DataLen: %d]",
+		common.LogWithProbability(0.1, "debug", "[client] Sending tunnel heartbeat [ClientID: %s, tunnelID: %d, DataLen: %d]",
 			cli.client.ClientID, cli.tunnel.ID, packet.Length)
 		if respData == nil {
 			return nil
@@ -225,7 +226,7 @@ func (cli *TunnelClient) MainLoop() error {
 			return err
 		}
 		respData := cli.Send(encode)
-		common.LogWithProbability(0.1, "debug", "Sending  heartbeat [ClientID: %s]", cli.client.ClientID)
+		common.LogWithProbability(0.1, "debug", "[client] Sending  heartbeat [ClientID: %s]", cli.client.ClientID)
 		if respData == nil {
 			return nil
 		}
@@ -251,6 +252,20 @@ func (c *TunnelClient) Close() {
 	close(c.done)
 	delete(c.client.TunnelMap, c.ID)
 	delete(c.client.TargetMap, c.target.ID)
+}
+
+//通知包发送，不会处理响应数据
+
+func (c *TunnelClient) Notice(packet *common.Packet, info string) {
+	encode, err := packet.Encode()
+	if err != nil {
+		common.Error("[notice]  Failed to encode packet: %v", err)
+	}
+	common.Debug("[notice] send a notice ,type:%v", packet.Type)
+	send := c.Send(encode)
+	if send != nil {
+		common.Info("[notice] success notice server: %s", info)
+	}
 }
 
 // 全局 http 配置
@@ -284,7 +299,7 @@ func (hc *HttpClient) SetRandomProxy() error {
 	defer hc.mu.Unlock()
 
 	if len(hc.Proxy) == 0 {
-		return errors.New("proxy pool is empty")
+		return errors.New("[http] proxy pool is empty")
 	}
 
 	var proxyStr string
@@ -316,7 +331,7 @@ func DoRequest(method, url string, data []byte, headers map[string]string) (*htt
 	// 如果启用了代理，在发送请求前设置随机代理
 	if cli.EnableProxy {
 		if err := cli.SetRandomProxy(); err != nil {
-			common.Error("Failed to set random proxy: %v", err)
+			common.Error("[http] Failed to set random proxy: %v", err)
 			// 即使设置代理失败，也继续发送请求
 		}
 	}

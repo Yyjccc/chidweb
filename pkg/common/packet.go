@@ -15,6 +15,7 @@ const (
 	PacketTypeConnect
 	PacketTypeData
 	PacketTypeDisconnect
+	PacketTypeConnected
 	PacketTypeError
 )
 
@@ -46,7 +47,7 @@ type Packet struct {
 // Encode 将数据包编码为字节流
 func (p *Packet) Encode() ([]byte, error) {
 	if p.Length > MaxPayloadSize {
-		return nil, errors.New("payload too large")
+		return nil, errors.New("[packet] payload too large")
 	}
 
 	totalSize := HeaderSize + p.Length
@@ -91,7 +92,7 @@ func DecodePacket(r io.Reader) (*Packet, error) {
 	// 验证魔数
 	magic := binary.BigEndian.Uint16(header[0:2])
 	if magic != MagicNumber {
-		return nil, errors.New("invalid magic number")
+		return nil, errors.New("[packet] invalid magic number")
 	}
 
 	p := &Packet{
@@ -105,7 +106,7 @@ func DecodePacket(r io.Reader) (*Packet, error) {
 
 	// 验证负载长度
 	if p.Length > MaxPayloadSize {
-		return nil, errors.New("payload too large")
+		return nil, errors.New("[packet] payload too large")
 	}
 
 	// 读取负载数据

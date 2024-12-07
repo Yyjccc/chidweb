@@ -75,7 +75,7 @@ func (c *Client) Start() error {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
-			common.Debug("start client main loop for target: %s", cli.target.addr.Raw)
+			common.Debug("[client] start client main loop for target: %s", cli.target.addr.Raw)
 			cli.heartbeatLoop()
 		}()
 	}
@@ -88,12 +88,15 @@ func (c *Client) connectToRemote(id uint32, channelID uint32) (*TunnelClient, er
 	if tunnelID, ok := c.TargetMap[id]; ok {
 		if tunnelClient, ok := c.TunnelMap[tunnelID]; ok {
 			if !tunnelClient.isTunnelEstablished {
-				tunnelClient.EstablishTunnel(channelID)
+				err := tunnelClient.EstablishTunnel(channelID)
+				if err != nil {
+					return nil, err
+				}
 			}
 			return tunnelClient, nil
 		}
 	}
-	return nil, fmt.Errorf("target tunnel client not found")
+	return nil, fmt.Errorf("[client] target tunnel client not found")
 }
 
 func (c *Client) DisconnectCallback(tunnel *common.Tunnel) {
@@ -108,7 +111,7 @@ func (c *Client) DisconnectCallback(tunnel *common.Tunnel) {
 	packet := &common.Packet{
 		Type:      common.PacketTypeDisconnect,
 		ClientID:  c.clientIDAsUint64(),
-		ChannelID: tunnel.ID,
+		ChannelID: tunnelClient.ServerTunnelID,
 		TargetID:  tunnelClient.target.ID,
 		Sequence:  0,
 		Length:    0,
@@ -116,20 +119,20 @@ func (c *Client) DisconnectCallback(tunnel *common.Tunnel) {
 	}
 	encode, err := packet.Encode()
 	if err != nil {
-		common.Error("client close tunnel err: %v", err)
+		common.Error("[connect] client close tunnel err: %v", err)
 	}
 	resp := tunnelClient.Send(encode)
 	packets, err := common.DecodePackets(resp)
 	if err != nil {
-		common.Error("server close tunnel  err: %v", err)
+		common.Error("[connect] server close tunnel  err: %v", err)
 	}
 	for _, p := range packets {
 		if p.Type == common.PacketTypeDisconnect {
-			common.Info("success close tunnel [tunnelID %v] [Target %v]", tunnel.ID, tunnelClient.target.addr.Raw)
+			common.Info("[connect] success close tunnel [tunnelID %v] [Target %v]", tunnel.ID, tunnelClient.target.addr.Raw)
 			return
 		}
 	}
-	common.Warn("client success close tunnel [tunnelID %v] [Target %v] but not know server", tunnel.ID, c.clientIDAsUint64())
+	common.Warn("[connect] client success close tunnel [tunnelID %v] [Target %v] but not know server", tunnel.ID, c.clientIDAsUint64())
 }
 
 // Stop Stop the client
@@ -167,7 +170,7 @@ func (c *Client) GetTunnelClient(id uint32) *TunnelClient {
 func (c *Client) Dispatch(tunnelClient *TunnelClient, data []byte) {
 	packets, err := common.DecodePackets(data)
 	if err != nil {
-		common.Error("Failed to decode packets: %v", err)
+		common.Error("[client] Failed to decode packets: %v", err)
 		return
 	}
 	for _, packet := range packets {
@@ -176,27 +179,49 @@ func (c *Client) Dispatch(tunnelClient *TunnelClient, data []byte) {
 		}
 		switch packet.Type {
 		case common.PacketTypeHeartbeat:
-			common.LogWithProbability(0.1, "debug", "receive heartbeat response")
+			common.LogWithProbability(0.1, "debug", "[client] receive heartbeat response")
 			break
 		case common.PacketTypeData:
-			err := tunnelClient.tunnel.Write(packet.Payload)
+			err = tunnelClient.tunnel.Write(packet.Payload)
 			if err != nil {
-				common.Error("Failed to write packet: %v", err)
+				common.Error("[client] Failed to write packet: %v", err)
 				return
 			}
-			common.LogWithProbability(0.1, "debug", "Successfully forwarded data packet [Length: %d]", len(packet.Payload))
+			common.LogWithProbability(0.1, "debug", "[client] Successfully forwarded data packet [Length: %d]", len(packet.Payload))
 			break
 		case common.PacketTypeDisconnect:
 			tunnelClient.CloseTunnel()
 			break
 		case common.PacketTypeConnect:
-			_, err := c.connectToRemote(packet.TargetID, packet.ChannelID)
+			_, err = c.connectToRemote(packet.TargetID, packet.ChannelID)
 			if err != nil {
-				common.Error("Failed to connect to remote: %v", err)
+				common.Error("[client] Failed to connect to remote: %v", err)
+				errMsg := "[client] err: " + err.Error()
+				p := &common.Packet{
+					Type:      common.PacketTypeError,
+					ClientID:  c.clientIDAsUint64(),
+					ChannelID: 0,
+					TargetID:  tunnelClient.target.ID,
+					Sequence:  tunnelClient.nextSequence(),
+					Length:    uint32(len(errMsg)),
+					Payload:   []byte(errMsg),
+				}
+				tunnelClient.Notice(p, "not connect to remote")
+				break
 			}
+			connected := &common.Packet{
+				Type:      common.PacketTypeConnected,
+				ClientID:  c.clientIDAsUint64(),
+				ChannelID: packet.ChannelID,
+				TargetID:  tunnelClient.target.ID,
+				Sequence:  tunnelClient.nextSequence(),
+			}
+			tunnelClient.Notice(connected, "connected to remote")
+		case common.PacketTypeConnected:
+			common.Debug("[client] server tunnel connected [tunnelID %v]", packet.ChannelID)
 			break
 		default:
-			common.Error("Unknown packet type: %v", packet.Type)
+			common.Error("[client] Unknown packet type: %v", packet.Type)
 		}
 	}
 }
