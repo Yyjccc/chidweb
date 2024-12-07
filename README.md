@@ -10,7 +10,7 @@
 
 
 <p align="center">
- <img src="asset/chidweb.ico" width="245" height="245" alt="chidweb">
+ <img src="asset/chidweb.ico" width="255" height="255" alt="chidweb">
 <br/>
 
 </p>
@@ -237,6 +237,9 @@ custom:
 
 ![count](https://api.moedog.org/count/@Yyjccc.readme)
 
+
+
+![show](https://repobeats.axiom.co/api/embed/af6e99dabd9537151c3144f6ee604565ecf8515a.svg)
 
 
 
